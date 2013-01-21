@@ -408,8 +408,7 @@ public abstract class Sprite {
     private void checkMoveable() {
         if (mIsMoveable == false)
             throw new RuntimeException("Attempting to a move a sprite declared " +
-                                       "to be immovable! The sprite's name is " +
-                                       getName() + " and is located at " + toString());
+                                       "to be immovable! Sprite: " + this);
     }
 
     public float getXLocation() {
@@ -480,6 +479,10 @@ public abstract class Sprite {
     /*
      * Getter and Setters
      */
+    public String toString() {
+        return this.getName();
+    }
+
     public String getName() {
         return mName;
     }

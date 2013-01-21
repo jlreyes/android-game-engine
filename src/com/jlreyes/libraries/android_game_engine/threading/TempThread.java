@@ -1,5 +1,6 @@
 package com.jlreyes.libraries.android_game_engine.threading;
 
+import android.util.Log;
 import com.jlreyes.libraries.android_game_engine.utils.ThreadUtils;
 import com.jlreyes.libraries.android_game_engine.utils.math.function.Function0;
 
@@ -39,6 +40,7 @@ public class TempThread extends Thread {
     }
 
     public void onPause() {
+        Log.w("TempThread", this.getName() + " running during pause.");
         this.mActivityPaused = true;
     }
 

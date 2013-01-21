@@ -7,6 +7,7 @@ import com.jlreyes.libraries.android_game_engine.io.GameView;
 import com.jlreyes.libraries.android_game_engine.rendering.renderable.Renderable;
 import com.jlreyes.libraries.android_game_engine.sprites.textures.types.TexType;
 import com.jlreyes.libraries.android_game_engine.utils.Utils;
+import com.jlreyes.libraries.android_game_engine.utils.exceptions.StrictGLException;
 import com.jlreyes.libraries.android_game_engine.utils.math.MathMatrix;
 
 import java.nio.ByteBuffer;
@@ -63,20 +64,24 @@ public class Texture {
          * Registers this texture part with opengl, must be run on the render
          * thread to work.
          */
-        public void registerWithOpenGL() {
+        public void registerWithOpenGL() throws StrictGLException {
             int[] handleHolder = new int[2];
             GLES20.glGenTextures(2, handleHolder, 0);
             this.mRGBHandle = handleHolder[0];
             this.mAHandle = handleHolder[1];
+            if (this.mRGBHandle == 0 || this.mAHandle == 0)
+                throw new StrictGLException("Registration failed for texture" +
+                                            " part.");
         }
 
         /**
          * Frees up resources by calling glDeleteTextures on our handles
          */
-        public void unregisterWithOpenGL() {
+        public void unregisterWithOpenGL() throws StrictGLException {
             if (mRGBHandle <= 0 || mAHandle <= 0)
-                throw new RuntimeException("This texture part hasn't been " +
-                                           "registered with openGL!");
+                throw new StrictGLException("Attempting to unregister a" +
+                                            " texture part that is not been" +
+                                            "registered with openGL");
             GLES20.glDeleteTextures(2, new int[]{mRGBHandle, mAHandle}, 0);
         }
 
@@ -177,6 +182,7 @@ public class Texture {
         /*
          * Getters and Setters
          */
+
         public int getNumRows() {
             return mFrameMatrix.getNumRows();
         }
@@ -263,7 +269,13 @@ public class Texture {
                     TexType rgbTex = rgbTexs[i];
                     TexType aTex = aTexs[i];
 					/* Generate texture part handles */
-                    texturePart.registerWithOpenGL();
+                    try {
+                        texturePart.registerWithOpenGL();
+                    } catch (StrictGLException e) {
+                        throw new RuntimeException("Texture Part " + i +
+                                                   "'s registration failed" +
+                                                   " for texture " + this);
+                    }
 					/* Load RGB Texture */
                     int rgbHandle = texturePart.getRGBHandle();
                     rgbTex.register(rgbHandle);
@@ -295,8 +307,15 @@ public class Texture {
     public void unregisterWithOpenGL(GameView gameView) {
         Runnable r = new Runnable() {
             public void run() {
-                for (TexturePart texPart : mTextureParts)
-                    texPart.unregisterWithOpenGL();
+                for (TexturePart texPart : mTextureParts) {
+                    try {
+                        texPart.unregisterWithOpenGL();
+                    } catch (StrictGLException e) {
+                        throw new RuntimeException("Texture unregisration " +
+                                                   "failed for texture " +
+                                                   this);
+                    }
+                }
             }
         };
 		/* Queue event and wait for it to finish. */
@@ -385,6 +404,10 @@ public class Texture {
 	/*
 	 * Getters and Setters
 	 */
+    public String toString() {
+        return this.mTexInfo.toString();
+    }
+
     public TexController.TexInfo getTexInfo() {
         return mTexInfo;
     }

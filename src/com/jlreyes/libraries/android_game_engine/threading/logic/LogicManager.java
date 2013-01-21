@@ -1,5 +1,6 @@
 package com.jlreyes.libraries.android_game_engine.threading.logic;
 
+import android.util.Log;
 import android.view.MotionEvent;
 import com.jlreyes.libraries.android_game_engine.io.GameView;
 import com.jlreyes.libraries.android_game_engine.rendering.GameRenderer;
@@ -12,9 +13,12 @@ import com.jlreyes.libraries.android_game_engine.threading.GameThread;
 import com.jlreyes.libraries.android_game_engine.threading.Scheduler;
 import com.jlreyes.libraries.android_game_engine.threading.SyncWrapper;
 import com.jlreyes.libraries.android_game_engine.utils.math.Tuple;
+import com.jlreyes.libraries.android_game_engine.utils.math.function.Function0;
 import com.jlreyes.libraries.android_game_engine.utils.math.function.Function1;
 
 import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.Queue;
 
 /**
  * Logic game loop and scene managing.
@@ -33,7 +37,10 @@ public class LogicManager extends GameThread {
     private ArrayList<GameCommand> mCommandQueue;
     private ArrayList<MotionEvent> mInputEvents;
     private SyncWrapper<RenderInfo> mAllRenderInfo;
-    private boolean mLoading;
+
+    private Queue<Function0<Void>> mResumeQueue;
+    private volatile Boolean mLoading;
+    private SceneLoader mLoader;
 
     private long currentTime;
     private long lastTime;
@@ -48,8 +55,15 @@ public class LogicManager extends GameThread {
      */
     private final Function1<Scene, Void> LOAD_CALLBACK = new Function1<Scene, Void>() {
         public Void run(Scene scene) {
+            if (getLoopState() == LoopState.PAUSED) {
+                Log.w("LOAD_CALLBACK", "Load completed, but we have paused!");
+                return null;
+            }
             LogicManager.this.addScene(scene);
-            LogicManager.this.mLoading = false;
+            synchronized (mLoading) {
+                mLoading = false;
+                mLoader = null;
+            }
             return null;
         }
     };
@@ -68,6 +82,9 @@ public class LogicManager extends GameThread {
         this.mAllRenderInfo = new SyncWrapper<RenderInfo>(mScheduler);
         this.mAllRenderInfo.add(new RenderInfo());
         this.mAllRenderInfo.add(new RenderInfo());
+        this.mResumeQueue = new LinkedList<Function0<Void>>();
+        this.mLoading = false;
+        this.mLoader = null;
         this.currentTime = 0l;
         this.lastTime = 0l;
         this.deltaTime = 0l;
@@ -78,10 +95,36 @@ public class LogicManager extends GameThread {
 
     public void onPause() {
         super.onPause();
+        removeScene(SceneController.LOAD_SCENE);
+        synchronized (mLoading) {
+            if (mLoading == true) {
+                Log.w(TAG, "Pause during loading. Adding loading to resume " +
+                           "queue.");
+                this.mResumeQueue.add(new Function0<Void>() {
+                    @Override
+                    public Void run() {
+                        LoadScene loadScene = SceneController.LOAD_SCENE_CONSTRUCTOR
+                                                             .run(mScheduler);
+                        mLoader = new SceneLoader(mScheduler,
+                                                  mLoader.getSceneClass(),
+                                                  loadScene,
+                                                  mLoader.getCallback());
+                        mScheduler.addThread(mLoader);
+                        return null;
+                    }
+                });
+            }
+        }
         for (Scene scene : mScenes) scene.onPause();
     }
 
     public void onResume() {
+        /* We need to execute functions we stored on pause */
+        synchronized (mLoading) {
+            this.mLoading = false;
+            while (!this.mResumeQueue.isEmpty())
+                this.mResumeQueue.remove().run();
+        }
         /* We need to reload all scenes. We do this on another thread to
          * prevent ui lockup */
         new Thread(new Runnable() {
@@ -141,19 +184,22 @@ public class LogicManager extends GameThread {
                 GameCommand gameCommand = mCommands.get(i);
                 switch (gameCommand.getCommand()) {
                     case LOAD: {
-                        if (this.mLoading == true) {
-                            this.mCommandQueue.add(gameCommand);
-                            break;
+                        synchronized (mLoading) {
+                            if (this.mLoading == true) {
+                                this.mCommandQueue.add(gameCommand);
+                                break;
+                            }
+                            this.mLoading = true;
+                            LoadScene loadScene = SceneController.LOAD_SCENE_CONSTRUCTOR
+                                                                 .run(mScheduler);
+                            SceneController.SceneInfo sceneInfo =
+                                    (SceneController.SceneInfo) gameCommand.getArgs();
+                            mLoader = new SceneLoader(mScheduler,
+                                                      sceneInfo.ClassName,
+                                                      loadScene,
+                                                      LOAD_CALLBACK);
+                            mScheduler.addThread(mLoader);
                         }
-                        this.mLoading = true;
-                        LoadScene loadScene = SceneController.LOAD_SCENE_CONSTRUCTOR
-                                                             .run(mScheduler);
-                        SceneController.SceneInfo sceneInfo =
-                                (SceneController.SceneInfo) gameCommand.getArgs();
-                        mScheduler.addThread(new SceneLoader(mScheduler,
-                                                             sceneInfo.ClassName,
-                                                             loadScene,
-                                                             LOAD_CALLBACK));
                         break;
                     }
                     case KILL: {
@@ -163,31 +209,36 @@ public class LogicManager extends GameThread {
                         break;
                     }
                     case LOAD_REPLACE: {
-                        if (this.mLoading == true) {
-                            this.mCommandQueue.add(gameCommand);
+                        synchronized (mLoading) {
+                            if (this.mLoading == true) {
+                                this.mCommandQueue.add(gameCommand);
+                                break;
+                            }
+                            this.mLoading = true;
+                            Tuple args = (Tuple) gameCommand.getArgs();
+                            final SceneController.SceneInfo thisScene =
+                                    (SceneController.SceneInfo) args.get(0);
+                            final SceneController.SceneInfo nextScene =
+                                    (SceneController.SceneInfo) args.get(1);
+                            Function1<Scene, Void> callback = new Function1<Scene, Void>() {
+                                @Override
+                                public Void run(Scene scene) {
+                                    if (getLoopState() == LoopState.PAUSED)
+                                        return null;
+                                    removeScene(thisScene);
+                                    LOAD_CALLBACK.run(scene);
+                                    return null;
+                                }
+                            };
+                            LoadScene loadScene = SceneController.LOAD_SCENE_CONSTRUCTOR
+                                                                 .run(mScheduler);
+                            mLoader = new SceneLoader(mScheduler,
+                                                      nextScene.ClassName,
+                                                      loadScene,
+                                                      callback);
+                            mScheduler.addThread(mLoader);
                             break;
                         }
-                        this.mLoading = true;
-                        Tuple args = (Tuple) gameCommand.getArgs();
-                        final SceneController.SceneInfo thisScene =
-                                (SceneController.SceneInfo) args.get(0);
-                        final SceneController.SceneInfo nextScene =
-                                (SceneController.SceneInfo) args.get(1);
-                        Function1<Scene, Void> callback = new Function1<Scene, Void>() {
-                            @Override
-                            public Void run(Scene scene) {
-                                removeScene(thisScene);
-                                LOAD_CALLBACK.run(scene);
-                                return null;
-                            }
-                        };
-                        LoadScene loadScene = SceneController.LOAD_SCENE_CONSTRUCTOR
-                                                             .run(mScheduler);
-                        mScheduler.addThread(new SceneLoader(mScheduler,
-                                                             nextScene.ClassName,
-                                                             loadScene,
-                                                             callback));
-                        break;
                     }
                     case SHOW_ERROR: {
                         /* TODO: Throw error */
@@ -271,5 +322,7 @@ public class LogicManager extends GameThread {
             }
             mScenes = newScenes;
         }
+        /* Removing other instances of this scene */
+        removeScene(sceneInfo);
     }
 }

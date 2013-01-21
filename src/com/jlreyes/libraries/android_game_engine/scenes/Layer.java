@@ -61,17 +61,9 @@ public abstract class Layer {
 
     /**
      * Called when the application is about to be paused.
-     * We free all opengl textures to save memory.
+     * We lose our context, so no need to unregister textures.
      */
-    public void onPause() {
-        GameView gameView = this.getParentScene().getScheduler().getGameView();
-        for (Sprite sprite : mSprites) {
-            if (sprite == null) continue;
-            Texture texture = sprite.getTexture();
-            if (texture == null) continue;
-            texture.unregisterWithOpenGL(gameView);
-        }
-    }
+    public void onPause() {}
 
     /**
      * Called when the application is about to be resumed. We reload every

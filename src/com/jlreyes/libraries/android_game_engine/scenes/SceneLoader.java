@@ -15,6 +15,7 @@ import java.lang.reflect.InvocationTargetException;
  */
 public class SceneLoader extends Loader<Scene> {
     private Scheduler mScheduler;
+    private Class<? extends Scene> mSceneClass;
 
     public SceneLoader(Scheduler scheduler,
                        Class sceneClass,
@@ -25,7 +26,7 @@ public class SceneLoader extends Loader<Scene> {
               sceneClass.getSimpleName(),
               loadScene,
               callback);
-
+        this.mSceneClass =  sceneClass;
         this.mScheduler = scheduler;
     }
 
@@ -60,5 +61,9 @@ public class SceneLoader extends Loader<Scene> {
             e.printStackTrace();
         }
         return scene;
+    }
+
+    public Class<? extends Scene> getSceneClass() {
+        return this.mSceneClass;
     }
 }

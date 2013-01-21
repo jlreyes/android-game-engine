@@ -31,6 +31,7 @@ public class Scheduler extends GameThread {
     //private MusicManager mMusicManager;
     private Animator mAnimator;
 
+    private MyLock mPauseLock;
     private ConcurrentLinkedQueue<TempThread> mTempThreads;
     private MinAllocHashSet<TempThread> mRunningTempThreads;
     private Iterator<TempThread> mRunningTempThreadIter;
@@ -48,6 +49,7 @@ public class Scheduler extends GameThread {
         //this.mMusicManager = new MusicManager(this, "Music Manager");
         this.mAnimator = new Animator("Animator");
 
+        this.mPauseLock = new MyLock();
         this.mTempThreads = new ConcurrentLinkedQueue<TempThread>();
         this.mRunningTempThreads = new MinAllocHashSet<TempThread>();
         this.mRunningTempThreadIter = this.mRunningTempThreads.iterator();
@@ -111,25 +113,34 @@ public class Scheduler extends GameThread {
      * Called when the activity is about to be paused
      */
     public void onPause() {
-        super.onPause();
-        mGameView.onPause();
-        mLogicManager.onPause();
-        //mMusicManager.onPause();
-        mAnimator.onPause();
-        Iterator<TempThread> iter = this.mRunningTempThreads.iterator();
-        while (iter.hasNext())
-            iter.next().onPause();
+        /* We need to wait until onPause and onResume are not running at the
+         * same time */
+        synchronized (this.mPauseLock) {
+            super.onPause();
+            mGameView.onPause();
+            mLogicManager.onPause();
+            //mMusicManager.onPause();
+            mAnimator.onPause();
+            Iterator<TempThread> iter = this.mRunningTempThreads.iterator();
+            while (iter.hasNext()) {
+                iter.next().onPause();
+            }
+        }
     }
 
     /**
      * Called when the activity is about to be resumed
      */
     public void onResume() {
-        super.onResume();
-        mGameView.onResume();
-        mLogicManager.onResume();
-        //mMusicManager.onResume();
-        mAnimator.onPause();
+        /* We need to wait until onPause and onResume are not running at the
+         * same time */
+        synchronized (this.mPauseLock) {
+            super.onResume();
+            mGameView.onResume();
+            mLogicManager.onResume();
+            //mMusicManager.onResume();
+            mAnimator.onPause();
+        }
     }
 
     /**

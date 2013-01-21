@@ -58,15 +58,10 @@ public abstract class Loader<T> extends TempThread {
         mLogicManager.addScene(mLoadScene);
         T instance = getLoadedObject();
         Log.i("Loader", "Created instance of " + mName);
-        try {
-            onLoad(instance);
-        } catch(Exception e) {
-            if (this.activityIsPaused()) return;
-            else throw new RuntimeException("Load error.", e);
-        }
-        getPercentDone().setPercentDone(100);
+        onLoad(instance);
         mLogicManager.addGameCommand(new GameCommand(GameCommand.Command.KILL,
                                                      SceneController.LOAD_SCENE));
+        getPercentDone().setPercentDone(100);
         mCallback.run(instance);
         Log.i("Loader", "Finished loading " + mName);
         System.gc();
@@ -88,6 +83,14 @@ public abstract class Loader<T> extends TempThread {
     }
 
     public abstract T constructObject(Class classObject);
+
+    public Function1<T, Void> getCallback() {
+        return this.mCallback;
+    }
+
+    public LoadScene getLoadScene() {
+        return this.mLoadScene;
+    }
 
     public PercentDone getPercentDone() {
         return mPercentDone;
