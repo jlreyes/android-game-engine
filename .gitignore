@@ -162,10 +162,16 @@ pip-log.txt
 # Mac crap
 .DS_Store
 
-#intellij stuff
-.idea/*
+# Intellij stuff
 *.iml
+*.ipr
+*.iws
+.idea/
 
 out/tests/*
 out/production/*
 
+# Examples folder 
+# Test Game
+examples/Test Game/.idea/
+examples/Test Game/out
