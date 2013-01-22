@@ -15,7 +15,6 @@ import java.util.HashSet;
  *
  * @author jlreyes
  */
-/* TODO: Three finger bug? */
 public class GameView extends GLSurfaceView {
     private GameRenderer mGameRenderer;
 

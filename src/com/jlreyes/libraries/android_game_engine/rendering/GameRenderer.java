@@ -147,7 +147,7 @@ public class GameRenderer implements Renderer {
         GLES20.glEnable(GLES20.GL_TEXTURE_2D);
         GLES20.glDisable(GLES20.GL_DEPTH_TEST);
 		/* Blending and anti-aliasing */
-        GLES20.glEnable(GLES20.GL_BLEND); // TODO: TEST
+        GLES20.glEnable(GLES20.GL_BLEND);
         GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
     }
 

@@ -1,9 +1,3 @@
-/**
- * This work is licensed under the Creative Commons
- * Attribution-NonCommercial-NoDerivs 3.0 Unported License.
- * To view a copy of this license, visit 
- * http://creativecommons.org/licenses/by-nc-nd/3.0/.
- */
 package com.jlreyes.libraries.android_game_engine.sprites.textures;
 
 import android.content.Context;
@@ -285,7 +279,6 @@ public class TextureLoader {
             e.printStackTrace();
             throw new RuntimeException("Fatal error.");
         }
-	    /* TODO: Cleanup of created files on force close */
     }
 	
 	/*
